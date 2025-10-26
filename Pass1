@@ -1,0 +1,89 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+#define MAX_LABEL 20
+#define MAX_OPCODE 20
+#define MAX_OPERAND 20
+
+int main() {
+    FILE *source, *optab, *intermediate, *symtab, *length;
+    char label[MAX_LABEL], opcode[MAX_OPCODE], operand[MAX_OPERAND];
+    char temp[MAX_LABEL];
+    int locctr, start_addr, found;
+    
+    // Open files
+    source = fopen("source.txt", "r");
+    optab = fopen("optab.txt", "r");
+    intermediate = fopen("intermediate.txt", "w");
+    symtab = fopen("symtab.txt", "w");
+    length = fopen("length.txt", "w");
+    
+    // Read first line
+    fscanf(source, "%s %s %s", label, opcode, operand);
+    
+    // Check for START
+    if (strcmp(opcode, "START") == 0) {
+        start_addr = strtol(operand, NULL, 16);
+        locctr = start_addr;
+        fprintf(intermediate, "\t%s\t%s\t%s\n", label, opcode, operand);
+        fscanf(source, "%s %s %s", label, opcode, operand);
+    } else {
+        locctr = 0;
+    }
+    
+    // Process each line
+    while (strcmp(opcode, "END") != 0) {
+        fprintf(intermediate, "%04X\t%s\t%s\t%s\n", locctr, label, opcode, operand);
+        
+        // Add label to symbol table if present
+        if (strcmp(label, "**") != 0) {
+            fprintf(symtab, "%s\t%04X\n", label, locctr);
+        }
+        
+        // Search OPTAB
+        rewind(optab);
+        found = 0;
+        while (fscanf(optab, "%s", temp) == 1) {
+            if (strcmp(temp, opcode) == 0) {
+                found = 1;
+                break;
+            }
+        }
+        
+        // Update location counter
+        if (found) {
+            locctr += 3;
+        } else if (strcmp(opcode, "WORD") == 0) {
+            locctr += 3;
+        } else if (strcmp(opcode, "RESW") == 0) {
+            locctr += 3 * atoi(operand);
+        } else if (strcmp(opcode, "RESB") == 0) {
+            locctr += atoi(operand);
+        } else if (strcmp(opcode, "BYTE") == 0) {
+            if (operand[0] == 'C') {
+                locctr += strlen(operand) - 3;
+            } else {
+                locctr += (strlen(operand) - 3) / 2;
+            }
+        }
+        
+        fscanf(source, "%s %s %s", label, opcode, operand);
+    }
+    
+    // Write END line
+    fprintf(intermediate, "%04X\t%s\t%s\t%s\n", locctr, label, opcode, operand);
+    
+    // Calculate and write program length
+    fprintf(length, "%04X", locctr - start_addr);
+    printf("Program Length: %04X\n", locctr - start_addr);
+    
+    // Close files
+    fclose(source);
+    fclose(optab);
+    fclose(intermediate);
+    fclose(symtab);
+    fclose(length);
+    
+    return 0;
+}
